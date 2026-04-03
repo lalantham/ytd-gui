@@ -2,6 +2,8 @@
 
 A beautiful, automated web interface for downloading media using `yt-dlp`. 
 
+![Test Image 1](https://github.com/lalantham/ytd-gui/blob/main/screenshot.png)
+
 ## Features
 - **Clean Interface**: Easy-to-use web application for downloading content.
 - **Batch Downloads**: Paste multiple URLs separated by commas or on new lines to download them at once. Options to zip all downloads together.
