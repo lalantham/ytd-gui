@@ -2,7 +2,7 @@
 
 A beautiful, automated web interface for downloading media using `yt-dlp`. 
 
-![Test Image 1](https://github.com/lalantham/ytd-gui/blob/main/screenshot.png)
+![Image 1](https://github.com/lalantham/ytd-gui/blob/main/screenshot.png)
 
 ## Features
 - **Clean Interface**: Easy-to-use web application for downloading content.
