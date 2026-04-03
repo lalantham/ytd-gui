@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YTDL — Universal Downloader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        :root {
+            --bg:          #0d1117;
+            --surface:     #161b22;
+            --surface2:    #1c2128;
+            --border:      #30363d;
+            --border-lit:  #484f58;
+            --accent:      #58a6ff;
+            --accent-glow: rgba(88,166,255,0.15);
+            --green:       #3fb950;
+            --green-dim:   rgba(63,185,80,0.1);
+            --red:         #f85149;
+            --red-dim:     rgba(248,81,73,0.1);
+            --text:        #e6edf3;
+            --text-sec:    #8b949e;
+            --muted:       #6e7681;
+            --mono:        'JetBrains Mono', monospace;
+            --sans:        'DM Sans', sans-serif;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--sans);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+
+        /* Card — wider */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.75rem;
+            width: 100%;
+            max-width: 660px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            margin-bottom: 1.4rem;
+        }
+        .logo-icon {
+            width: 32px; height: 32px;
+            background: var(--accent);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; flex-shrink: 0; color: #0d1117;
+        }
+        h1 {
+            font-family: var(--mono);
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+        }
+        .badge {
+            margin-left: auto;
+            font-family: var(--mono);
+            font-size: 0.58rem;
+            padding: 2px 8px;
+            background: rgba(88,166,255,0.08);
+            border: 1px solid rgba(88,166,255,0.2);
+            border-radius: 999px;
+            color: var(--accent);
+            letter-spacing: 0.08em;
+        }
+
+        /* URL input */
+        .url-wrap { position: relative; margin-bottom: 0.8rem; }
+        .url-input {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.72rem 2.4rem 0.72rem 0.9rem;
+            color: var(--text);
+            font-family: var(--mono);
+            font-size: 0.77rem;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+            color-scheme: dark;
+        }
+        .url-input::placeholder { color: var(--muted); }
+        .url-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+        .refresh-btn {
+            position: absolute;
+            right: 9px; top: 50%;
+            transform: translateY(-50%);
+            background: none; border: none;
+            color: var(--muted);
+            font-size: 15px; line-height: 1;
+            cursor: pointer; padding: 3px;
+            transition: color 0.15s;
+            display: inline-block;
+        }
+        .refresh-btn:hover { color: var(--accent); }
+        .refresh-btn.spinning {
+            animation: spinY 0.7s linear infinite;
+        }
+        @keyframes spinY {
+            from { transform: translateY(-50%) rotate(0deg); }
+            to   { transform: translateY(-50%) rotate(360deg); }
+        }
+
+        .mode-toggle-wrap {
+            display: flex; gap: 1rem; margin-bottom: 1.2rem;
+            font-family: var(--sans); font-size: 0.8rem;
+        }
+        .mode-toggle-wrap label {
+            cursor: pointer; display: flex; align-items: center; gap: 0.35rem; color: var(--text-sec);
+            transition: color 0.15s;
+        }
+        .mode-toggle-wrap label:hover { color: var(--text); }
+        .mode-toggle-wrap input[type="radio"] {
+            accent-color: var(--accent); cursor: pointer;
+            width: 14px; height: 14px;
+        }
+
+        /* Info bar */
+        #info-bar {
+            display: none;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.6rem 0.85rem;
+            margin-bottom: 0.8rem;
+            align-items: center;
+            gap: 0.7rem;
+        }
+        #info-bar.show { display: flex; }
+        #info-thumb {
+            width: 56px; height: 38px;
+            object-fit: cover; border-radius: 4px;
+            flex-shrink: 0; display: none;
+        }
+        #info-thumb.show { display: block; }
+        .info-text { flex: 1; min-width: 0; }
+        #info-title {
+            font-size: 0.78rem; font-weight: 600;
+            color: var(--green);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        #info-meta {
+            font-family: var(--mono);
+            font-size: 0.62rem; color: var(--muted); margin-top: 2px;
+        }
+
+        /* Form row */
+        .form-row { display: flex; gap: 0.75rem; margin-bottom: 0.8rem; }
+        .field { flex: 1; }
+        .field-label {
+            font-family: var(--mono);
+            font-size: 0.58rem; letter-spacing: 0.1em;
+            text-transform: uppercase; color: var(--muted);
+            margin-bottom: 5px; display: block;
+        }
+
+        /* Selects — dark, no OS chrome */
+        .sel-wrap { position: relative; }
+        select {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.68rem 2rem 0.68rem 0.85rem;
+            color: var(--text);
+            font-family: var(--sans);
+            font-size: 0.83rem;
+            outline: none; cursor: pointer;
+            appearance: none; -webkit-appearance: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+            color-scheme: dark;          /* makes <option> dark in all browsers */
+        }
+        select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+        select:disabled { opacity: 0.38; cursor: not-allowed; }
+        option { background: var(--surface2); color: var(--text); }
+        option:checked { background: #1f3a5f; }
+
+        .sel-chevron {
+            position: absolute; right: 9px; top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none; color: var(--muted); font-size: 10px;
+        }
+        .sel-spinner {
+            display: none;
+            position: absolute; right: 9px; top: 50%;
+            transform: translateY(-50%);
+            width: 13px; height: 13px;
+            border: 2px solid rgba(88,166,255,0.2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin2 0.7s linear infinite;
+        }
+        @keyframes spin2 { to { transform: translateY(-50%) rotate(360deg); } }
+
+        /* Download button */
+        #dl-btn {
+            width: 100%;
+            background: var(--accent);
+            border: none; border-radius: 8px;
+            padding: 0.78rem;
+            color: #0d1117;
+            font-family: var(--mono); font-weight: 700;
+            font-size: 0.82rem; letter-spacing: 0.1em;
+            cursor: pointer;
+            transition: filter 0.15s, opacity 0.15s;
+        }
+        #dl-btn:hover:not(:disabled) { filter: brightness(1.12); }
+        #dl-btn:disabled { opacity: 0.32; cursor: not-allowed; }
+
+        /* Progress */
+        #progress-container { display: none; margin-top: 1.1rem; }
+        #progress-container.show { display: block; }
+
+        .prog-header {
+            display: flex; justify-content: space-between;
+            align-items: center; margin-bottom: 0.42rem;
+        }
+        .status-row { display: flex; align-items: center; gap: 6px; }
+        .dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--accent); flex-shrink: 0;
+            animation: blink 1.2s ease-in-out infinite;
+        }
+        .dot.done { background: var(--green); animation: none; }
+        @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.25;} }
+        #status-label {
+            font-family: var(--mono); font-size: 0.68rem; color: var(--text-sec);
+        }
+        #pct-text {
+            font-family: var(--mono); font-size: 0.82rem;
+            font-weight: 700; color: var(--accent);
+        }
+
+        .prog-track {
+            height: 5px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 999px; overflow: hidden;
+            margin-bottom: 0.5rem;
+        }
+        #prog-bar {
+            height: 100%; border-radius: 999px;
+            background: var(--accent); width: 0%;
+            transition: width 0.35s ease;
+        }
+
+        /* Stats — single row, no wrap */
+        .stats-row {
+            display: flex;
+            gap: 0;
+            flex-wrap: nowrap;
+            overflow: hidden;
+        }
+        .stat {
+            font-family: var(--mono);
+            font-size: 0.68rem; color: var(--muted);
+            white-space: nowrap; flex-shrink: 0;
+        }
+        .stat + .stat { margin-left: 1.2rem; }
+        .stat span { color: var(--text-sec); font-weight: 600; }
+        /* size gets remaining space */
+        .stat.size { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+
+        /* Toast */
+        #toast { display: none; margin-top: 0.85rem; padding: 0.62rem 0.9rem;
+                 border-radius: 8px; font-family: var(--mono); font-size: 0.72rem; line-height: 1.5; }
+        #toast.success { display: block; background: var(--green-dim); border: 1px solid rgba(63,185,80,0.25); color: var(--green); }
+        #toast.error   { display: block; background: var(--red-dim);   border: 1px solid rgba(248,81,73,0.25); color: var(--red); }
+
+        /* Modal */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+            z-index: 100; align-items: center; justify-content: center;
+            padding: 1rem;
+        }
+        .modal-overlay.show { display: flex; animation: fadeIn 0.15s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal-content {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; width: 100%; max-width: 500px;
+            max-height: 85vh; display: flex; flex-direction: column;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+        }
+        .modal-header {
+            padding: 1.2rem 1.4rem; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-header h2 { font-size: 0.95rem; font-weight: 700; font-family: var(--sans); }
+        .close-btn {
+            background: none; border: none; color: var(--muted);
+            font-size: 1.5rem; line-height: 1; cursor: pointer; padding: 0 4px;
+        }
+        .close-btn:hover { color: var(--red); }
+        .modal-search {
+            padding: 0.8rem 1.4rem; border-bottom: 1px solid var(--border);
+            background: var(--surface2);
+        }
+        .modal-search input {
+            width: 100%; background: var(--bg);
+            border: 1px solid var(--border); border-radius: 6px;
+            padding: 0.6rem 0.8rem; color: var(--text); font-family: var(--sans);
+            outline: none; transition: border-color 0.15s;
+        }
+        .modal-search input:focus { border-color: var(--accent); }
+        .modal-body {
+            padding: 0; overflow-y: auto; flex: 1;
+        }
+        .site-item {
+            padding: 0.8rem 1.4rem; border-bottom: 1px solid var(--border);
+        }
+        .site-item:last-child { border-bottom: none; }
+        .site-item:hover { background: var(--surface2); }
+        .site-name { font-family: var(--mono); font-size: 0.75rem; color: var(--accent); font-weight: 600; margin-bottom: 0.2rem; }
+        .site-desc { font-size: 0.7rem; color: var(--text-sec); font-family: var(--sans); }
+        .loading-sites { padding: 2rem; text-align: center; color: var(--muted); font-family: var(--mono); font-size: 0.8rem; }
+        
+        .badge-btn {
+            cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        .badge-btn:hover {
+            background: rgba(88,166,255,0.15); border-color: rgba(88,166,255,0.4);
+            color: #79c0ff;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+
+    <div class="header">
+        <div class="logo-icon">⬇</div>
+        <h1>YTDL</h1>
+        <button class="badge badge-btn" id="sites-btn" title="View Supported Sites">yt-dlp sites</button>
+    </div>
+
+    <div class="mode-toggle-wrap">
+        <label><input type="radio" name="input_mode" value="single" checked> Single Link</label>
+        <label><input type="radio" name="input_mode" value="batch"> Batch Links</label>
+    </div>
+
+    <div class="url-wrap" id="single-url-wrap">
+        <input id="url" class="url-input" type="text"
+               placeholder="Paste any supported URL…"
+               autocomplete="off" spellcheck="false">
+        <button class="refresh-btn" id="fetch-btn" title="Fetch info &amp; qualities">⟳</button>
+    </div>
+    
+    <div class="url-wrap" id="batch-url-wrap" style="display: none;">
+        <textarea id="batch-urls" class="url-input" rows="4"
+                  placeholder="Paste multiple URLs here (one per line)…"
+                  spellcheck="false" style="resize: vertical; line-height: 1.4;"></textarea>
+        <div style="margin-top: 0.5rem;">
+            <label style="font-family: var(--mono); font-size: 0.72rem; color: var(--text-sec); cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                <input type="checkbox" id="zip-batch-chk"> Download batch as a single ZIP file
+            </label>
+        </div>
+    </div>
+
+    <div id="info-bar">
+        <img id="info-thumb" src="" alt="">
+        <div class="info-text">
+            <div id="info-title"></div>
+            <div id="info-meta"></div>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <label class="field-label" for="mode">Format</label>
+            <div class="sel-wrap">
+                <select id="mode">
+                    <option value="video">Video + Audio</option>
+                    <option value="audio">Audio Only (MP3)</option>
+                </select>
+                <span class="sel-chevron">▾</span>
+            </div>
+        </div>
+        <div class="field">
+            <label class="field-label" for="quality">Quality</label>
+            <div class="sel-wrap">
+                <select id="quality" disabled>
+                    <option value="placeholder">— paste URL first —</option>
+                </select>
+                <span class="sel-chevron" id="qual-chev">▾</span>
+                <div class="sel-spinner" id="qual-spin"></div>
+            </div>
+        </div>
+    </div>
+
+    <button id="dl-btn" disabled>DOWNLOAD</button>
+
+    <div id="progress-container">
+        <div class="prog-header">
+            <div class="status-row">
+                <div class="dot" id="dot"></div>
+                <span id="status-label">Downloading…</span>
+            </div>
+            <div id="pct-text">0%</div>
+        </div>
+        <div class="prog-track"><div id="prog-bar"></div></div>
+        <div class="stats-row">
+            <div class="stat">Speed: <span id="s-speed">—</span></div>
+            <div class="stat size">Size: <span id="s-size">—</span></div>
+            <div class="stat">ETA: <span id="s-eta">—</span></div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+<div class="modal-overlay" id="sites-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Supported Sites</h2>
+            <button class="close-btn" id="close-sites">&times;</button>
+        </div>
+        <div class="modal-search">
+            <input type="text" id="sites-search" placeholder="Search platforms... e.g. youtube, soundcloud" autocomplete="off">
+        </div>
+        <div class="modal-body" id="sites-list">
+            <div class="loading-sites">Loading...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const socket = io();
+
+const $ = id => document.getElementById(id);
+const urlInput  = $('url');
+const fetchBtn  = $('fetch-btn');
+const modeEl    = $('mode');
+const qualEl    = $('quality');
+const dlBtn     = $('dl-btn');
+const qualSpin  = $('qual-spin');
+const qualChev  = $('qual-chev');
+const infoBar   = $('info-bar');
+const infoThumb = $('info-thumb');
+const infoTitle = $('info-title');
+const infoMeta  = $('info-meta');
+const progCont  = $('progress-container');
+const progBar   = $('prog-bar');
+const pctText   = $('pct-text');
+const statusLbl = $('status-label');
+const dot       = $('dot');
+const sSpeed    = $('s-speed');
+const sSize     = $('s-size');
+const sEta      = $('s-eta');
+const toast     = $('toast');
+
+const singleWrap  = $('single-url-wrap');
+const batchWrap   = $('batch-url-wrap');
+const batchUrls   = $('batch-urls');
+const zipBatchChk = $('zip-batch-chk');
+const inputModes  = document.getElementsByName('input_mode');
+
+let isBatchMode = false;
+inputModes.forEach(r => r.addEventListener('change', () => {
+    isBatchMode = r.value === 'batch';
+    singleWrap.style.display = isBatchMode ? 'none' : 'block';
+    batchWrap.style.display  = isBatchMode ? 'block' : 'none';
+    infoBar.classList.remove('show');
+    clearToast();
+    
+    if (isBatchMode) {
+        qualEl.innerHTML = `
+            <option value="best">Best Available</option>
+            <option value="1080">1080p</option>
+            <option value="720">720p</option>
+            <option value="480">480p</option>
+            <option value="360">360p</option>
+        `;
+        qualEl.disabled = modeEl.value === 'audio';
+        dlBtn.disabled = false;
+    } else {
+        qualEl.innerHTML = '<option value="placeholder">— paste URL first —</option>';
+        qualEl.disabled = true;
+        dlBtn.disabled = true;
+    }
+}));
+
+modeEl.addEventListener('change', () => {
+    if (isBatchMode) {
+        qualEl.disabled = modeEl.value === 'audio';
+    } else {
+        qualEl.disabled = modeEl.value === 'audio' || qualEl.options[0]?.value === 'placeholder';
+    }
+});
+
+fetchBtn.addEventListener('click', fetchInfo);
+urlInput.addEventListener('keydown', e => e.key === 'Enter' && fetchInfo());
+let dbt;
+urlInput.addEventListener('input', () => {
+    clearTimeout(dbt);
+    dbt = setTimeout(() => { if (urlInput.value.trim().startsWith('http')) fetchInfo(); }, 900);
+});
+
+async function fetchInfo() {
+    if (isBatchMode) return;
+    const url = urlInput.value.trim();
+    if (!url) return;
+
+    clearToast();
+    infoBar.classList.remove('show');
+    qualEl.disabled = true;
+    dlBtn.disabled  = true;
+    qualSpin.style.display = 'block';
+    qualChev.style.display = 'none';
+    fetchBtn.classList.add('spinning');
+    qualEl.innerHTML = '<option>Fetching…</option>';
+
+    try {
+        const res  = await fetch('/fetch_qualities', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+        const data = await res.json();
+
+        if (!res.ok || data.error) {
+            showToast('error', '⚠ ' + (data.error || 'Failed to fetch info'));
+            qualEl.innerHTML = '<option value="best">Best (fallback)</option>';
+            qualEl.disabled  = false;
+            dlBtn.disabled   = false;
+            return;
+        }
+
+        qualEl.innerHTML = '<option value="best">Best Available</option>';
+        (data.qualities || []).forEach(h => {
+            const o = document.createElement('option');
+            o.value = h; o.textContent = h + 'p';
+            qualEl.appendChild(o);
+        });
+
+        infoTitle.textContent = data.title || '';
+        infoMeta.textContent  = [data.site, data.duration ? fmtDur(data.duration) : '']
+                                    .filter(Boolean).join(' · ');
+        if (data.thumbnail) { infoThumb.src = data.thumbnail; infoThumb.classList.add('show'); }
+        else infoThumb.classList.remove('show');
+        infoBar.classList.add('show');
+
+        qualEl.disabled = modeEl.value === 'audio';
+        dlBtn.disabled  = false;
+
+    } catch (err) {
+        showToast('error', '⚠ Network error: ' + err.message);
+        qualEl.innerHTML = '<option value="best">Best (fallback)</option>';
+        qualEl.disabled  = false;
+        dlBtn.disabled   = false;
+    } finally {
+        qualSpin.style.display = 'none';
+        qualChev.style.display = 'block';
+        fetchBtn.classList.remove('spinning');
+    }
+}
+
+dlBtn.addEventListener('click', () => {
+    let urls = [];
+    if (isBatchMode) {
+        urls = batchUrls.value.split('\n').map(u => u.trim()).filter(Boolean);
+        if (urls.length === 0) { showToast('error', 'Please paste at least one URL.'); return; }
+    } else {
+        const url = urlInput.value.trim();
+        if (!url) { showToast('error', 'Please paste a URL first.'); return; }
+        urls = [url];
+    }
+
+    clearToast();
+    progCont.classList.add('show');
+    progBar.style.width   = '0%';
+    pctText.textContent   = '0%';
+    statusLbl.textContent = isBatchMode ? 'Starting batch…' : 'Downloading…';
+    dot.className = 'dot';
+    sSpeed.textContent = sSize.textContent = sEta.textContent = '—';
+    dlBtn.disabled = fetchBtn.disabled = true;
+    
+    const zip = isBatchMode && zipBatchChk.checked;
+    socket.emit('start_download', { urls, zip, mode: modeEl.value, quality: qualEl.value });
+});
+
+socket.on('progress', d => {
+    const pct = Math.min(d.progress || 0, 100);
+    progBar.style.width = pct + '%';
+    pctText.textContent = pct.toFixed(1) + '%';
+    sSpeed.textContent  = d.speed || '—';
+    sEta.textContent    = d.eta   || '—';
+    statusLbl.textContent = d.phase || 'Downloading…';
+    if (d.total && d.total !== 'N/A')
+        sSize.textContent = (d.downloaded || '0 B') + ' / ' + d.total;
+    else if (d.downloaded)
+        sSize.textContent = d.downloaded;
+});
+
+// Server signals a file is ready — trigger browser Save dialog
+socket.on('ready', d => {
+    // Hidden <a> click — browser shows native Save As dialog
+    const a = document.createElement('a');
+    a.href = `/download/${d.file_id}`;
+    a.download = d.filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    showToast('success', `✓ Saved: ${d.filename}`);
+});
+
+socket.on('job_complete', () => {
+    progBar.style.width   = '100%';
+    pctText.textContent   = '100%';
+    statusLbl.textContent = 'Finished';
+    dot.className = 'dot done';
+    dlBtn.disabled = fetchBtn.disabled = false;
+});
+
+socket.on('error', d => {
+    showToast('error', '⚠ ' + d.message);
+    if (!statusLbl.textContent.includes('Finished')) {
+        dot.className = 'dot';
+        statusLbl.textContent = 'Error occurred';
+    }
+});
+
+function showToast(t, m) { toast.className = t; toast.textContent = m; }
+function clearToast()    { toast.className = ''; toast.textContent = ''; }
+function fmtDur(s) {
+    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+    return h > 0
+        ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
+        : `${m}:${String(sec).padStart(2,'0')}`;
+}
+// Supported Sites Modal Logic
+const sitesBtn = document.getElementById('sites-btn');
+const sitesModal = document.getElementById('sites-modal');
+const closeSitesBtn = document.getElementById('close-sites');
+const sitesSearch = document.getElementById('sites-search');
+const sitesList = document.getElementById('sites-list');
+let allSites = [];
+
+sitesBtn.addEventListener('click', async () => {
+    sitesModal.classList.add('show');
+    if (allSites.length === 0) {
+        sitesList.innerHTML = '<div class="loading-sites">Fetching supported sites...</div>';
+        try {
+            const res = await fetch('/supported_sites');
+            if (res.ok) {
+                allSites = await res.json();
+                renderSites(allSites);
+            } else {
+                sitesList.innerHTML = '<div class="loading-sites">Failed to load sites.</div>';
+            }
+        } catch (err) {
+            sitesList.innerHTML = '<div class="loading-sites">Error loading sites.</div>';
+        }
+    } else {
+        sitesSearch.value = '';
+        renderSites(allSites);
+    }
+    setTimeout(() => sitesSearch.focus(), 150);
+});
+
+closeSitesBtn.addEventListener('click', () => {
+    sitesModal.classList.remove('show');
+});
+
+sitesModal.addEventListener('click', (e) => {
+    if (e.target === sitesModal) sitesModal.classList.remove('show');
+});
+
+sitesSearch.addEventListener('input', () => {
+    const term = sitesSearch.value.toLowerCase().trim();
+    if (!term) {
+        renderSites(allSites);
+        return;
+    }
+    const filtered = allSites.filter(s => 
+        s.name.toLowerCase().includes(term) || 
+        (s.desc && s.desc.toLowerCase().includes(term))
+    );
+    renderSites(filtered);
+});
+
+function renderSites(sites) {
+    if (sites.length === 0) {
+        sitesList.innerHTML = '<div class="loading-sites">No matching sites found.</div>';
+        return;
+    }
+    const html = sites.map(s => `
+        <div class="site-item">
+            <div class="site-name">${s.name}</div>
+            <div class="site-desc">${s.desc}</div>
+        </div>
+    `).join('');
+    sitesList.innerHTML = html;
+}
+</script>
+</body>
+</html>

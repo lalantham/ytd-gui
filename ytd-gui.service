@@ -1,0 +1,27 @@
+[Unit]
+Description=YTD GUI Service (yt-dlp web interface)
+After=network.target
+
+[Service]
+User=lalantha
+Group=lalantha
+WorkingDirectory=/home/lalantha/Documents/Tools/Apps/ytd-gui
+Environment="PATH=/home/lalantha/Documents/Tools/Apps/ytd-gui/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="FLASK_ENV=production"
+
+# Execute gunicorn with 1 worker and multiple threads. This is critical because 
+# the `completed_files` dictionary in app.py is held in memory, meaning if you
+# had multiple gunicorn workers, downloads would get lost between them!
+ExecStart=/home/lalantha/Documents/Tools/Apps/ytd-gui/venv/bin/gunicorn \
+    -w 1 \
+    --threads 20 \
+    -b 0.0.0.0:5000 \
+    --access-logfile - \
+    --error-logfile - \
+    "app:app"
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

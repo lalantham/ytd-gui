@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.env
+.DS_Store
+*.webm
+*.mp4
+*.m4a
+*.mp3
+ytdl_batch_*.zip
